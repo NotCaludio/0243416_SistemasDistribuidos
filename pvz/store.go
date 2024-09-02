@@ -23,11 +23,10 @@ type store struct {
 }
 
 func (s *store) NewStore(f *os.File, size uint64) (*store, error) {
-	file, err := os.Stat(f.Name())
+	_, err := os.Stat(f.Name())
 	if err != nil {
 		return nil, err
 	}
-	println(file)
 	return &store{
 		File: f,
 		size: size,
@@ -35,21 +34,23 @@ func (s *store) NewStore(f *os.File, size uint64) (*store, error) {
 	}, nil
 }
 
-// new position, # of written bytes, error
+// start position, # of written bytes, error
 func (s *store) Append(p []byte) (uint64, uint64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	pos := s.size
-	if err := binary.Write(s.buf, enc, len(p)); err != nil {
+	//write the size into the buffer
+	if err := binary.Write(s.buf, enc, uint64(len(p))); err != nil {
 		return 0, 0, nil
 	}
+	//write the record
 	nn, err := s.buf.Write(p)
 	if err != nil {
 		return 0, 0, err
 	}
 	nn += lenWidth
 	writeLen := uint64(nn)
-	pos += writeLen
+	s.size += writeLen
 	return pos, writeLen, nil
 }
 
@@ -75,6 +76,7 @@ func (s *store) Read(pos int64) ([]byte, error) {
 
 }
 
+// it reads until the slice is filled
 func (s *store) ReadAt(p []byte, off int64) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,4 +84,14 @@ func (s *store) ReadAt(p []byte, off int64) (int, error) {
 		return 0, err
 	}
 	return s.File.ReadAt(p, off)
+}
+
+// flush and close
+func (s *store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.buf.Flush(); err != nil {
+		return err
+	}
+	return s.File.Close()
 }
