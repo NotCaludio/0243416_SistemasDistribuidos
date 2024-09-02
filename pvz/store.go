@@ -22,11 +22,12 @@ type store struct {
 	size uint64
 }
 
-func (s *store) NewStore(f *os.File, size uint64) (*store, error) {
-	_, err := os.Stat(f.Name())
+func newStore(f *os.File) (*store, error) {
+	file, err := os.Stat(f.Name())
 	if err != nil {
 		return nil, err
 	}
+	size := uint64(file.Size())
 	return &store{
 		File: f,
 		size: size,
@@ -34,7 +35,7 @@ func (s *store) NewStore(f *os.File, size uint64) (*store, error) {
 	}, nil
 }
 
-// start position, # of written bytes, error
+// , # of written bytes, start position ,error
 func (s *store) Append(p []byte) (uint64, uint64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -51,11 +52,11 @@ func (s *store) Append(p []byte) (uint64, uint64, error) {
 	nn += lenWidth
 	writeLen := uint64(nn)
 	s.size += writeLen
-	return pos, writeLen, nil
+	return writeLen, pos, nil
 }
 
 // because i don't know how much is the record size, i don't send an array
-func (s *store) Read(pos int64) ([]byte, error) {
+func (s *store) Read(pos uint64) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	//flush
@@ -64,12 +65,12 @@ func (s *store) Read(pos int64) ([]byte, error) {
 	}
 	// find record size
 	size := make([]byte, lenWidth)
-	if _, err := s.ReadAt(size, pos); err != nil {
+	if _, err := s.ReadAt(size, int64(pos)); err != nil {
 		return nil, err
 	}
 	// get record
 	record := make([]byte, enc.Uint64(size))
-	if _, err := s.ReadAt(record, pos+lenWidth); err != nil {
+	if _, err := s.ReadAt(record, int64(pos+lenWidth)); err != nil {
 		return nil, err
 	}
 	return record, nil
