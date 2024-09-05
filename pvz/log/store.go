@@ -22,30 +22,30 @@ type store struct {
 	size uint64
 }
 
-func newStore(f *os.File) (*store, error) {
-	file, err := os.Stat(f.Name())
+func newStore(file *os.File) (*store, error) {
+	fileName, err := os.Stat(file.Name())
 	if err != nil {
 		return nil, err
 	}
-	size := uint64(file.Size())
+	size := uint64(fileName.Size())
 	return &store{
-		File: f,
+		File: file,
 		size: size,
-		buf:  bufio.NewWriter(f),
+		buf:  bufio.NewWriter(file),
 	}, nil
 }
 
 // , # of written bytes, start position ,error
-func (s *store) Append(p []byte) (uint64, uint64, error) {
+func (s *store) Append(record []byte) (uint64, uint64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	pos := s.size
 	//write the size into the buffer
-	if err := binary.Write(s.buf, enc, uint64(len(p))); err != nil {
+	if err := binary.Write(s.buf, enc, uint64(len(record))); err != nil {
 		return 0, 0, nil
 	}
 	//write the record
-	nn, err := s.buf.Write(p)
+	nn, err := s.buf.Write(record)
 	if err != nil {
 		return 0, 0, err
 	}

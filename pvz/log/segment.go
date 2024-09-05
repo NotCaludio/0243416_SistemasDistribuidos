@@ -57,7 +57,11 @@ func newSegment(dir string, baseOffset uint64, c Config) (*segment, error) {
 func (s *segment) Append(record *api.Record) (uint64, error) {
 	offset := s.nextOffset
 	record.Offset = offset
-	_, storePosition, err := s.store.Append(record.Value)
+	marshaledValue, err := proto.Marshal(record)
+	if err != nil {
+		return 0, err
+	}
+	_, storePosition, err := s.store.Append(marshaledValue)
 	if err != nil {
 		return 0, nil
 	}
@@ -110,7 +114,7 @@ func (s *segment) Close() error {
 	if err := s.index.Close(); err != nil {
 		return err
 	}
-	if err := s.index.Close(); err != nil {
+	if err := s.store.Close(); err != nil {
 		return err
 	}
 	return nil

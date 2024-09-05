@@ -20,27 +20,33 @@ type index struct {
 }
 
 func newIndex(f *os.File, c Config) (*index, error) {
-	indexx := &index{
-		file: f,
-	}
+
 	fileName, err := os.Stat(f.Name())
 	if err != nil {
 		return nil, err
 	}
-	indexx.size = uint64(fileName.Size())
+	size := uint64(fileName.Size())
 	if err := os.Truncate(f.Name(), int64(c.Segment.MaxIndexBytes)); err != nil {
 		return nil, err
 	}
-	if indexx.mmap, err = gommap.Map(indexx.file.Fd(), gommap.PROT_READ|gommap.PROT_WRITE, gommap.MAP_SHARED); err != nil {
+	mmap, err := gommap.Map(f.Fd(), gommap.PROT_READ|gommap.PROT_WRITE, gommap.MAP_SHARED)
+	if err != nil {
 		return nil, err
+	}
+	indexx := &index{
+		file: f,
+		mmap: mmap,
+		size: size,
 	}
 	return indexx, nil
 
 }
 
-func (i *index) Read(entries int64) (offset uint32, storePosition uint64, err error) {
-	offset = uint32(entries)
-	storePosition = uint64(offset) * endWidth
+func (i *index) Read(entry int64) (offset uint32, storePosition uint64, err error) {
+	if entry < 0 {
+		entry = entry * -1
+	}
+	storePosition = uint64(entry) * endWidth
 	if i.size < storePosition+endWidth {
 		return 0, 0, io.EOF
 	}
@@ -70,7 +76,7 @@ func (i *index) Close() error {
 	if err := i.file.Sync(); err != nil {
 		return err
 	}
-	if err := i.file.Truncate(int64(i.size)); err != nil {
+	if err := os.Truncate(i.file.Name(), int64(i.size)); err != nil {
 		return err
 	}
 	if err := i.file.Close(); err != nil {
