@@ -77,7 +77,7 @@ func (s *segment) Append(record *api.Record) (uint64, error) {
 }
 
 // idk
-func (s *segment) Read(offset uint64) (record *api.Record, funcErr error) {
+func (s *segment) Read(offset uint64) (*api.Record, error) {
 
 	_, pos, err := s.index.Read(int64(offset - s.baseOffset))
 	if err != nil {
@@ -87,7 +87,8 @@ func (s *segment) Read(offset uint64) (record *api.Record, funcErr error) {
 	if err != nil {
 		return nil, err
 	}
-	funcErr = proto.Unmarshal(value, record)
+	record := &api.Record{}
+	funcErr := proto.Unmarshal(value, record)
 	return record, funcErr
 
 }

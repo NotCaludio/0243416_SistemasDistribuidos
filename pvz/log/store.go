@@ -65,12 +65,13 @@ func (s *store) Read(pos uint64) ([]byte, error) {
 	}
 	// find record size
 	size := make([]byte, lenWidth)
-	if _, err := s.ReadAt(size, int64(pos)); err != nil {
+	if _, err := s.File.ReadAt(size, int64(pos)); err != nil {
 		return nil, err
 	}
 	// get record
-	record := make([]byte, enc.Uint64(size))
-	if _, err := s.ReadAt(record, int64(pos+lenWidth)); err != nil {
+	sizeUint64 := enc.Uint64(size)
+	record := make([]byte, sizeUint64)
+	if _, err := s.File.ReadAt(record, int64(pos+lenWidth)); err != nil {
 		return nil, err
 	}
 	return record, nil
