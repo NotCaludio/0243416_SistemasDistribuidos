@@ -14,19 +14,19 @@ init:
 # Finally we create the client certificate this allows two way authentication
 gencert:
 	cfssl gencert \
-		-initca test/ca-csr.json | cfssljson -bare ca
+		-initca certificates/ca-csr.json | cfssljson -bare ca
 	cfssl gencert \
 		-ca=ca.pem \
 		-ca-key=ca-key.pem \
-		-config=test/ca-config.json \
+		-config=certificates/ca-config.json \
 		-profile=server \
-		test/server-csr.json | cfssljson -bare server
+		certificates/server-csr.json | cfssljson -bare server
 	cfssl gencert \
 		-ca=ca.pem \
 		-ca-key=ca-key.pem \
-		-config=test/ca-config.json \
+		-config=certificates/ca-config.json \
 		-profile=client \
-		test/client-csr.json | cfssljson -bare client
+		certificates/client-csr.json | cfssljson -bare client
 	mv *.pem *.csr ${CONFIG_PATH}
 
 compile:
