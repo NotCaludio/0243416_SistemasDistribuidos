@@ -6,11 +6,12 @@ import (
 	"os"
 	"testing"
 
-	api "github.com/notcaludio/pvz/api/v1" // Cambien esto por la ruta en su máquina
-	"github.com/notcaludio/pvz/log"        // Cambien esto por la ruta en su máquina
+	api "github.com/notcaludio/pvz/api/v1"
+	tlsconfig "github.com/notcaludio/pvz/config"
+	"github.com/notcaludio/pvz/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -18,7 +19,7 @@ func TestServer(t *testing.T) {
 	for scenario, fn := range map[string]func(
 		t *testing.T,
 		client api.LogClient,
-		config *CommitLogImpl,
+		config *Config,
 	){
 		"produce/consume a message to/from the log succeeeds": testProduceConsume,
 		"produce/consume stream succeeds":                     testProduceConsumeStream,
@@ -35,18 +36,43 @@ func TestServer(t *testing.T) {
 // END: intro
 
 // START: setup
-func setupTest(t *testing.T, fn func(*CommitLogImpl)) (
+func setupTest(t *testing.T, fn func(*Config)) (
 	client api.LogClient,
-	config *CommitLogImpl,
+	config *Config,
 	teardown func(),
 ) {
 	t.Helper()
 
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	clientOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	cc, err := grpc.NewClient(l.Addr().String(), clientOptions...)
+
+	clientTLSConfig, err := tlsconfig.SetupTLSConfig(tlsconfig.TLSConfig{
+		CertFile: tlsconfig.ClientCertFile,
+		KeyFile:  tlsconfig.ClientKeyFile,
+		CAFile:   tlsconfig.CAFile,
+	})
 	require.NoError(t, err)
+
+	clientCreds := credentials.NewTLS(clientTLSConfig)
+	//clientOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	cc, err := grpc.NewClient(
+		l.Addr().String(),
+		grpc.WithTransportCredentials(clientCreds),
+	)
+	require.NoError(t, err)
+
+	client = api.NewLogClient(cc)
+
+	severTLSConfig, err := tlsconfig.SetupTLSConfig(tlsconfig.TLSConfig{
+		CertFile:      tlsconfig.ServerCertFile,
+		KeyFile:       tlsconfig.ServerKeyFile,
+		CAFile:        tlsconfig.CAFile,
+		ServerAddress: l.Addr().String(),
+		Server:        true,
+	})
+
+	require.NoError(t, err)
+	serverCreds := credentials.NewTLS(severTLSConfig)
 
 	dir, err := os.MkdirTemp("", "server-test")
 	require.NoError(t, err)
@@ -54,7 +80,7 @@ func setupTest(t *testing.T, fn func(*CommitLogImpl)) (
 	clog, err := log.NewLog(dir, log.Config{})
 	require.NoError(t, err)
 
-	config = &CommitLogImpl{
+	config = &Config{
 		CommitLog: clog,
 	}
 	if fn != nil {
@@ -67,8 +93,6 @@ func setupTest(t *testing.T, fn func(*CommitLogImpl)) (
 		server.Serve(l)
 	}()
 
-	client = api.NewLogClient(cc)
-
 	return client, config, func() {
 		server.Stop()
 		cc.Close()
@@ -80,7 +104,7 @@ func setupTest(t *testing.T, fn func(*CommitLogImpl)) (
 // END: setup
 
 // START: produceconsume
-func testProduceConsume(t *testing.T, client api.LogClient, config *CommitLogImpl) {
+func testProduceConsume(t *testing.T, client api.LogClient, config *Config) {
 	ctx := context.Background()
 
 	want := &api.Record{
@@ -109,7 +133,7 @@ func testProduceConsume(t *testing.T, client api.LogClient, config *CommitLogImp
 func testConsumePastBoundary(
 	t *testing.T,
 	client api.LogClient,
-	config *CommitLogImpl,
+	config *Config,
 ) {
 	ctx := context.Background()
 
@@ -139,7 +163,7 @@ func testConsumePastBoundary(
 func testProduceConsumeStream(
 	t *testing.T,
 	client api.LogClient,
-	config *CommitLogImpl,
+	config *Config,
 ) {
 	ctx := context.Background()
 
