@@ -4,6 +4,7 @@ import (
 	"context"
 
 	api "github.com/notcaludio/pvz/api/v1"
+	"google.golang.org/grpc"
 )
 
 type CommitLog interface {
@@ -21,15 +22,21 @@ type grpcServer struct {
 	*CommitLogImpl
 }
 
-func newgrpcServer(commitlog *CommitLogImpl) (srv *grpcServer, err error) {
+func newGRPCServer(commitlog *CommitLogImpl) (srv *grpcServer, err error) {
 	srv = &grpcServer{
 		CommitLogImpl: commitlog,
 	}
 	return srv, nil
 }
 
-func NewGRPCServer(commitlog *CommitLogImpl) (srv *grpcServer, err error) {
-	return newgrpcServer(commitlog)
+func NewGRPCServer(commitlog *CommitLogImpl) (*grpc.Server, error) {
+	gsrv := grpc.NewServer()
+	srv, err := newGRPCServer(commitlog)
+	if err != nil {
+		return nil, err
+	}
+	api.RegisterLogServer(gsrv, srv)
+	return gsrv, nil
 }
 
 func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (*api.ProduceResponse, error) {

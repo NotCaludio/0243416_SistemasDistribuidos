@@ -60,12 +60,17 @@ func setupTest(t *testing.T, fn func(*CommitLogImpl)) (
 	if fn != nil {
 		fn(config)
 	}
-	_, err = NewGRPCServer(config)
+	server, err := NewGRPCServer(config)
 	require.NoError(t, err)
+
+	go func() {
+		server.Serve(l)
+	}()
 
 	client = api.NewLogClient(cc)
 
 	return client, config, func() {
+		server.Stop()
 		cc.Close()
 		l.Close()
 		clog.Remove()
